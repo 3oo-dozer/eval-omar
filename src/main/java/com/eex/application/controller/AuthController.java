@@ -6,76 +6,63 @@ import com.eex.domain.entity.User;
 import com.eex.domain.service.UserService;
 import com.eex.domain.util.JwtUtil;
 import com.eex.domain.util.PasswordUtil;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final UserService userService;
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private static final String INVALID_CREDENTIALS = "Identifiants invalides";
 
+    /** Hash factice : on exécute BCrypt même si l'utilisateur n'existe pas (temps de réponse constant). */
+    private static final String DUMMY_HASH = PasswordUtil.hashPassword("dummy-password-for-timing");
+
+    private final UserService userService;
     private final JwtUtil jwtUtil;
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
-
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest) {
-        logger.info("Tentative de connexion pour l'utilisateur : " + loginRequest.getUsername());
-
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         List<User> users = userService.getUsersByUsername(loginRequest.getUsername());
+        User user = users.size() == 1 ? users.get(0) : null;
 
-        if (users.isEmpty()) {
-            logger.warn("Utilisateur non trouvé : " + loginRequest.getUsername());
-            AuthResponse response = new AuthResponse(null, "Identifiants invalides");
-            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
-        }
+        String hash = user != null ? user.getPassword() : DUMMY_HASH;
+        boolean passwordOk = PasswordUtil.matches(loginRequest.getPassword(), hash);
 
-        User user = users.get(0);
-
-        if (!PasswordUtil.matches(loginRequest.getPassword(), user.getPassword())) {
-            logger.warn("Mot de passe incorrect pour l'utilisateur : " + loginRequest.getUsername());
-            AuthResponse response = new AuthResponse(null, "Identifiants invalides");
-            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        if (user == null || !passwordOk) {
+            logger.warn("Échec de connexion");
+            return new ResponseEntity<>(new AuthResponse(null, INVALID_CREDENTIALS), HttpStatus.UNAUTHORIZED);
         }
 
         String token = jwtUtil.generateToken(user.getId());
-        logger.info("Connexion réussie pour l'utilisateur : " + loginRequest.getUsername());
-
-        AuthResponse response = new AuthResponse(token, "Authentification réussie");
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        logger.info("Connexion réussie pour l'utilisateur id={}", user.getId());
+        return new ResponseEntity<>(new AuthResponse(token, "Authentification réussie"), HttpStatus.OK);
     }
 
     @PostMapping("/validate")
-    public ResponseEntity<AuthResponse> validateToken(@RequestHeader("Authorization") String authHeader) {
-        logger.info("Validation du jeton");
-
+    public ResponseEntity<AuthResponse> validateToken(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.warn("En-tête Authorization manquant ou invalide");
-            AuthResponse response = new AuthResponse(null, "Jeton manquant ou invalide");
-            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            return new ResponseEntity<>(new AuthResponse(null, "Jeton manquant ou invalide"), HttpStatus.UNAUTHORIZED);
         }
 
         String token = authHeader.substring(7);
         Integer userId = jwtUtil.validateAndGetUserId(token);
 
-        if (userId == null) {
-            logger.warn("Jeton invalide ou expiré");
-            AuthResponse response = new AuthResponse(null, "Jeton invalide ou expiré");
-            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        if (userId == null || userService.getUserById(userId).isEmpty()) {
+            return new ResponseEntity<>(new AuthResponse(null, "Jeton invalide ou expiré"), HttpStatus.UNAUTHORIZED);
         }
 
-        logger.info("Jeton valide pour l'utilisateur : " + userId);
-        AuthResponse response = new AuthResponse(token, "Jeton valide pour l'utilisateur : " + userId);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new ResponseEntity<>(new AuthResponse(token, "Jeton valide"), HttpStatus.OK);
     }
 }
-

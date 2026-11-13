@@ -1,6 +1,7 @@
 package com.eex.infrastructure.config;
 
 import com.eex.domain.util.PasswordUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,7 +12,11 @@ import java.sql.SQLException;
 @Configuration
 public class DataInitializationConfig {
 
-    private static final String sqlite_url = "jdbc:sqlite:sqlite/sqlite.test.db";
+    private final String sqlite_url;
+
+    public DataInitializationConfig(@Value("${spring.datasource.url}") String sqliteUrl) {
+        this.sqlite_url = sqliteUrl;
+    }
 
     @Bean
     public CommandLineRunner initializeDatabase() {
@@ -32,7 +37,7 @@ public class DataInitializationConfig {
         };
     }
 
-    public static void createTables() {
+    public void createTables() {
         var createClientTableQuery = "CREATE TABLE IF NOT EXISTS client ("
                 + "	id INTEGER PRIMARY KEY,"
                 + "	legal_entity BOOLEAN NOT NULL"
@@ -62,7 +67,7 @@ public class DataInitializationConfig {
         }
     }
 
-    public static void insertData() {
+    public void insertData() {
         var legalEntity = new boolean[] {true, true, true, false, false};
         var usernames = new String[] {"Alice", "Bernard", "Chloé", "David", "Emma"};
         var passwords = new String[] {"aliceSecret", "bernardSecret", "chloeSecret", "davidSecret", "emmaSecret"};
@@ -97,19 +102,18 @@ public class DataInitializationConfig {
         }
     }
 
-    public static void displayData() {
+    public void displayData() {
         try (var conn = DriverManager.getConnection(sqlite_url);
              var stmt = conn.createStatement();
              var rsUser = stmt.executeQuery("SELECT * FROM user")) {
 
             System.out.println("\nTable User");
-            System.out.println("id\tclient_id\tusername\tpassword");
+            System.out.println("id\tclient_id\tusername");
             System.out.println("------------------------------------");
             while (rsUser.next()) {
                 System.out.println(rsUser.getInt("id") + "\t" +
                         rsUser.getInt("client_id") + "\t\t\t" +
-                        rsUser.getString("username") + "\t\t" +
-                        rsUser.getString("password")
+                        rsUser.getString("username")
                 );
             }
         } catch (SQLException e) {
