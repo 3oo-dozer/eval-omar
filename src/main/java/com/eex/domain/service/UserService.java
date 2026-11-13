@@ -4,6 +4,7 @@ import com.eex.domain.entity.User;
 import com.eex.infrastructure.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,18 +14,22 @@ import java.util.Optional;
 public class UserService {
     private final UserRepository userRepository;
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
-    }
-
+    @Transactional(readOnly = true)
     public Optional<User> getUserById(Integer id) {
         return userRepository.findById(id);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<User> getUserForClient(Integer id, Integer clientId) {
+        return userRepository.findByIdAndClientId(id, clientId);
+    }
+
+    @Transactional(readOnly = true)
     public List<User> getUsersByClientId(Integer clientId) {
         return userRepository.findByClientId(clientId);
     }
 
+    @Transactional(readOnly = true)
     public List<User> getUsersByUsername(String username) {
         return userRepository.findByUsername(username);
     }
@@ -33,29 +38,29 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User updateUser(Integer id, User userDetails) {
-        Optional<User> optionalUser = userRepository.findById(id);
-        if (optionalUser.isPresent()) {
-            User user = optionalUser.get();
-            if (userDetails.getUsername() != null) {
-                user.setUsername(userDetails.getUsername());
-            }
-            if (userDetails.getPassword() != null) {
-                user.setPassword(userDetails.getPassword());
-            }
-            if (userDetails.getClientId() != null) {
-                user.setClientId(userDetails.getClientId());
-            }
-            return userRepository.save(user);
-        }
-        throw new RuntimeException("User introuvable avec l'id " + id);
-    }
+    // public User updateUser(Integer id, User userDetails) {
+    // Optional<User> optionalUser = userRepository.findById(id);
+    // if (optionalUser.isPresent()) {
+    // User user = optionalUser.get();
+    // if (userDetails.getUsername() != null) {
+    // user.setUsername(userDetails.getUsername());
+    // }
+    // if (userDetails.getPassword() != null) {
+    // user.setPassword(userDetails.getPassword());
+    // }
+    // if (userDetails.getClientId() != null) {
+    // user.setClientId(userDetails.getClientId());
+    // }
+    // return userRepository.save(user);
+    // }
+    // throw new RuntimeException("User introuvable avec l'id " + id);
+    // }
 
-    public void deleteUser(Integer id) {
-        if (userRepository.existsById(id)) {
-            userRepository.deleteById(id);
-        } else {
-            throw new RuntimeException("User introuvable avec l'id " + id);
-        }
-    }
+    // public void deleteUser(Integer id) {
+    // if (userRepository.existsById(id)) {
+    // userRepository.deleteById(id);
+    // } else {
+    // throw new RuntimeException("User introuvable avec l'id " + id);
+    // }
+    // }
 }
